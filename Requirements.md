@@ -52,27 +52,36 @@ This file describes **what** the system does. `AGENTS.md` describes **how** the 
 
 All error responses are `ProblemDetails` with `code` and `correlationId`. Every response has an `X-Correlation-Id` header.
 
+### API versions
+- The API version is part of the URL: `/api/v{version}/...`. Every endpoint below exists in **v1**.
+- **v2** exists only for courses: all course endpoints are available under `/api/v2/courses`, and `GET /api/v2/courses/{id}` returns a different shape (see Courses).
+- Courses **v1 is deprecated**: course responses carry `api-deprecated-versions: 1.0`. Clients should move to v2.
+- Every versioned response lists the active versions of that resource in `api-supported-versions` and the deprecated ones in `api-deprecated-versions`. A deprecated version is not repeated in `api-supported-versions` (courses: `api-supported-versions: 2.0`, `api-deprecated-versions: 1.0`).
+- A version that does not exist for a resource (e.g. `/api/v3/courses`, `/api/v2/students`), or a URL without a version (`/api/courses`), returns **404** with a `ProblemDetails` body (no route exists for it), and the request does not reach any handler.
+- The v2 course response is a demonstration of versioning. In practice an additive change like a new field does not require a new version; a new version is for breaking changes (removed or renamed fields, changed types or meaning).
+
 ### Students
-- `POST /api/students` — create a student. Body: `{ "fullName" }`. Returns 201 with the new ID.
-- `GET /api/students/{id}` — get a student. Returns 200, or 404.
-- `GET /api/students?page=&pageSize=` — list students. Returns 200 with a paged result.
+- `POST /api/v1/students` — create a student. Body: `{ "fullName" }`. Returns 201 with the new ID.
+- `GET /api/v1/students/{id}` — get a student. Returns 200, or 404.
+- `GET /api/v1/students?page=&pageSize=` — list students. Returns 200 with a paged result.
 
 ### Courses
-- `POST /api/courses` — create a course. Body: `{ "title", "capacity" }` (`capacity` optional, default 30). Returns 201 with the new ID.
-- `GET /api/courses/{id}` — get a course, including `capacity`, `enrolledCount` and `rowVersion`. Returns 200, or 404.
-- `GET /api/courses?page=&pageSize=` — list courses. Returns 200 with a paged result.
+- `POST /api/v1/courses` — create a course. Body: `{ "title", "capacity" }` (`capacity` optional, default 30). Returns 201 with the new ID.
+- `GET /api/v1/courses/{id}` — get a course (**v1, deprecated**), including `capacity`, `enrolledCount` and `rowVersion`. Returns 200, or 404.
+- `GET /api/v2/courses/{id}` — get a course (**v2**): the v1 fields plus `availableSeats` (= `capacity` − `enrolledCount`). Returns 200, or 404. `POST` and the list are the same in v2 under `/api/v2/courses`.
+- `GET /api/v1/courses?page=&pageSize=` — list courses. Returns 200 with a paged result.
 
 ### Enrollments
-- `POST /api/students/{studentId}/enrollments` — enroll a student. Body: `{ "courseId" }`. Returns 204, 404, or 409.
-- `GET /api/students/{studentId}/enrollments/{courseId}` — get an enrollment. Returns 200, or 404.
-- `DELETE /api/students/{studentId}/enrollments/{courseId}` — cancel an enrollment and free the seat. Returns 204, 404, or 409.
-- `GET /api/students/{studentId}/courses?page=&pageSize=` — list the courses a student is enrolled in. Returns 200, or 404 if the student does not exist.
+- `POST /api/v1/students/{studentId}/enrollments` — enroll a student. Body: `{ "courseId" }`. Returns 204, 404, or 409.
+- `GET /api/v1/students/{studentId}/enrollments/{courseId}` — get an enrollment. Returns 200, or 404.
+- `DELETE /api/v1/students/{studentId}/enrollments/{courseId}` — cancel an enrollment and free the seat. Returns 204, 404, or 409.
+- `GET /api/v1/students/{studentId}/courses?page=&pageSize=` — list the courses a student is enrolled in. Returns 200, or 404 if the student does not exist.
 
 ### External API (JSONPlaceholder)
-A reference example of calling an external API. These endpoints are served by `JsonPlaceholderController` under `/api/jsonplaceholder`, proxy https://jsonplaceholder.typicode.com, and do not touch the database.
-- `GET /api/jsonplaceholder/users?page=&pageSize=` — list external users (paging is done by the external API with `_page`/`_limit`; `totalCount` comes from its `X-Total-Count` header). Returns 200, 400, 502, or 504.
-- `GET /api/jsonplaceholder/users/{id}` — get one external user. `id` must be greater than 0. Returns 200, 400, 404 (`JsonPlaceholder.UserNotFound`), 502, or 504.
-- `POST /api/jsonplaceholder/posts` — create a post. Body: `{ "userId", "title", "body" }`; `userId` > 0, `title` required (max 200), `body` required (max 2000). Returns 201 with the created post, 400, 502, or 504. JSONPlaceholder does **not** persist it and always returns `id = 101`.
+A reference example of calling an external API. These endpoints are served by `JsonPlaceholderController` under `/api/v1/jsonplaceholder`, proxy https://jsonplaceholder.typicode.com, and do not touch the database.
+- `GET /api/v1/jsonplaceholder/users?page=&pageSize=` — list external users (paging is done by the external API with `_page`/`_limit`; `totalCount` comes from its `X-Total-Count` header). Returns 200, 400, 502, or 504.
+- `GET /api/v1/jsonplaceholder/users/{id}` — get one external user. `id` must be greater than 0. Returns 200, 400, 404 (`JsonPlaceholder.UserNotFound`), 502, or 504.
+- `POST /api/v1/jsonplaceholder/posts` — create a post. Body: `{ "userId", "title", "body" }`; `userId` > 0, `title` required (max 200), `body` required (max 2000). Returns 201 with the created post, 400, 502, or 504. JSONPlaceholder does **not** persist it and always returns `id = 101`.
 
 External failures:
 - The external API is slow (no response within the configured timeout) → 504 `ExternalService.Timeout`.
@@ -99,7 +108,7 @@ Applied by migrations on startup:
 
 ## Project Notes
 Technical facts specific to this project. `AGENTS.md` is generic and refers to these through placeholders.
-- Architecture: Clean Architecture + CQRS + Repository Pattern with Unit of Work.
+- Architecture: Clean Architecture + CQRS + Repository Pattern with Unit of Work, plus API best practices: API versioning (Asp.Versioning 10.2.1, URL segment). Idempotency, rate limiting and caching are planned.
 - `[Project]` = `School`: `SchoolDbContext`, `SchoolSeed`, `SchoolUnitOfWork`.
 - Database provider: SQLite, connection string `School` = `Data Source=school.db;Foreign Keys=True` (file created next to the WebAPI project). `SchoolUnitOfWork` maps SQLite extended error codes `1555` (primary key) and `2067` (unique) to `PersistenceErrors.DuplicateKey`.
 - Solution file: `CleanArchitectureTemplate_CQRS_RepositoryPattern.slnx`.

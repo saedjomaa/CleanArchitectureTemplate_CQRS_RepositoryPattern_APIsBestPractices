@@ -112,7 +112,24 @@ Application/
 - Every action has `[EndpointSummary]` and a `[ProducesResponseType]` for the success status and for every error status it can return (`ValidationProblemDetails` for 400, `ProblemDetails` for 404/409).
 - List endpoints take `page` and `pageSize` from the query string with defaults from `Pagination`.
 - Keep `WebAPI/WebAPI.http` in sync with the endpoints: add an example for every new endpoint and remove examples for deleted ones.
-- API documentation, Development only: `MapOpenApi()` serves the OpenAPI document at `/openapi/v1.json`, and `MapScalarApiReference()` (package `Scalar.AspNetCore`) serves an interactive UI at `/scalar` to read and call the endpoints. Both are generated from the controllers, so `[EndpointSummary]` and `[ProducesResponseType]` are what the UI shows. Do not expose them outside Development.
+- API documentation, Development only: `MapOpenApi()` serves one OpenAPI document per API version (`/openapi/v1.json`, `/openapi/v2.json`, ...), and `MapScalarApiReference()` (package `Scalar.AspNetCore`) serves an interactive UI at `/scalar` with a version dropdown. Both are generated from the controllers, so `[EndpointSummary]` and `[ProducesResponseType]` are what the UI shows. Do not expose them outside Development.
+
+## API Versioning
+- Packages: `Asp.Versioning.Mvc` and `Asp.Versioning.Mvc.ApiExplorer`. Configured in `Program.cs` with `AddApiVersioning(...).AddMvc().AddApiExplorer(...)`.
+- The version is a URL segment: every controller route is `api/v{version:apiVersion}/[module]`, and every request URL contains it (`/api/v1/...`). There is no unversioned route and no default version for requests without one.
+- Every controller declares the versions it serves with `[ApiVersion("N.0")]`. A new controller starts at the version where it is introduced.
+- All versions of one resource stay in one controller:
+  - an action that is the same in every declared version has no version attribute;
+  - an action that differs per version exists once per version, each with `[MapToApiVersion("N.0")]`, and the newer one is named `[Action]V[N]` (e.g. `GetV2`). Both keep the same route template.
+- Create a new version only for a breaking change (a removed or renamed field, a changed type or meaning, a changed status code). Additive changes (a new optional field, a new endpoint) go into the current version.
+- When a newer version replaces an older one, mark the older one `[ApiVersion("N.0", Deprecated = true)]`. `ReportApiVersions = true` returns `api-supported-versions` (active versions only) and `api-deprecated-versions` headers; a deprecated version appears only in the second one. A URL with no version or an unknown version matches no route and returns 404; `app.UseStatusCodePages()` (with `AddProblemDetails()`) gives that and every other empty error response a `ProblemDetails` body. Remove a deprecated version only after announcing it in `Requirements.md`.
+- Application is version-agnostic: commands, queries, handlers and responses never mention API versions.
+  - A version that only reshapes an existing Application response uses a contract in `WebAPI/Contracts/V[N]/[Entity]V[N]Response.cs` with a `To[V[N]]Response()` mapping extension in the same file, called by the controller.
+  - A version that needs different data gets a new query or command in Application, named by what it does, not by the API version.
+- `CreatedAtAction` keeps the requested version in the `Location` URL (the `version` route value is ambient), so a create in v2 points to the v2 GET.
+- OpenAPI: `AddApiExplorer` uses `GroupNameFormat = "'v'VVV"` and `SubstituteApiVersionInUrl = true`, so each version becomes a group named `v1`, `v2`, ... When adding a version, register its document with `builder.Services.AddOpenApi("vN")` and add it to Scalar with `.AddDocument("vN", ...)` (mark the newest `isDefault: true`).
+- `WebAPI.csproj` suppresses the analyzer warnings AV0029/AV0030 (they suggest `Asp.Versioning.OpenApi`, which does not yet support Microsoft.OpenApi 3.x used by .NET 11). Remove the suppression and switch to `AddApiVersioning().AddOpenApi()` + `MapOpenApi().WithDocumentPerVersion()` once a compatible release exists.
+- Keep `WebAPI.http` examples on explicit versions, with at least one example per version that differs.
 
 ## External Services
 Placeholder: `[Service]` (external API name, e.g. the provider's product name).
@@ -137,7 +154,7 @@ Placeholder: `[Service]` (external API name, e.g. the provider's product name).
 - External list endpoints still return `PagedResult<T>`: use the external API's paging parameters and total-count header when it has them; do not fetch everything and page in memory.
 - No automatic retries by default. Never retry non-idempotent requests (POST) automatically.
 - External services are not added to `/health`: their outage does not make this application unhealthy.
-- One controller per external service: `[Service]Controller` with the route prefix `api/[service]` (lowercase service name), holding all of that service's endpoints (e.g. `api/[service]/[resource]`). Do not split a service's endpoints across controllers per resource.
+- One controller per external service: `[Service]Controller` with the route prefix `api/v{version:apiVersion}/[service]` (lowercase service name), holding all of that service's endpoints (e.g. `api/v1/[service]/[resource]`). Do not split a service's endpoints across controllers per resource.
 - A create call to an external API with no local read endpoint returns `201` via `Created((string?)null, value)`.
 
 ## Cross-Cutting Rules
@@ -187,6 +204,6 @@ Placeholder: `[Service]` (external API name, e.g. the provider's product name).
 4. Add or reuse repository methods (see Data Access). A new repository is registered automatically when it is named `[Entity]Repository` and implements `I[Entity]Repository`.
 5. Add errors to `[Module]Errors.cs` if needed.
 6. If the model changed, add a migration with the EF Core CLI (see Migrations).
-7. Add the controller action following the Controllers section, and an example request in `WebAPI.http`.
+7. Add the controller action following the Controllers and API Versioning sections, and an example request with an explicit version in `WebAPI.http`.
 8. Add the endpoint to `Requirements.md`.
 9. Run `dotnet build` on the solution file at the repository root.

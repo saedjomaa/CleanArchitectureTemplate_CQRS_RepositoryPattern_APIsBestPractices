@@ -1,4 +1,5 @@
 using Application.Common.Abstractions;
+using Asp.Versioning;
 using Application.Common.Pagination;
 using Application.Common.Responses;
 using Application.Common.Results;
@@ -15,7 +16,8 @@ namespace WebAPI.Controllers;
 /// One controller per external service; the database is not used here.
 /// </summary>
 [ApiController]
-[Route("api/jsonplaceholder")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/jsonplaceholder")]
 public sealed class JsonPlaceholderController : ControllerBase
 {
     [HttpGet("users")]

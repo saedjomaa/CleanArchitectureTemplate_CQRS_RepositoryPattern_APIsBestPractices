@@ -1,4 +1,5 @@
 using Application.Common.Abstractions;
+using Asp.Versioning;
 using Application.Common.Pagination;
 using Application.Common.Responses;
 using Application.Common.Results;
@@ -12,7 +13,8 @@ using WebAPI.Diagnostics;
 namespace WebAPI.Controllers;
 
 [ApiController]
-[Route("api/students/{studentId:guid}")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/students/{studentId:guid}")]
 public sealed class EnrollmentsController : ControllerBase
 {
     private const string EnrollmentRoute = "enrollments/{courseId:guid}";

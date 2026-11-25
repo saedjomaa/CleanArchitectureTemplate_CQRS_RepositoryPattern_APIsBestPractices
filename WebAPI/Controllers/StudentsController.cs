@@ -1,4 +1,5 @@
 using Application.Common.Abstractions;
+using Asp.Versioning;
 using Application.Common.Pagination;
 using Application.Common.Responses;
 using Application.Common.Results;
@@ -11,7 +12,8 @@ using WebAPI.Diagnostics;
 namespace WebAPI.Controllers;
 
 [ApiController]
-[Route("api/students")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/students")]
 public sealed class StudentsController : ControllerBase
 {
     [HttpPost]

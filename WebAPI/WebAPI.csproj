@@ -1,6 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!--
+      AV0029 / AV0030 suggest Asp.Versioning.OpenApi (AddApiVersioning().AddOpenApi() and WithDocumentPerVersion()).
+      Its latest version requires Microsoft.OpenApi < 3.0, while Microsoft.AspNetCore.OpenApi 11 requires 3.x,
+      so it cannot be used yet. Program.cs registers one AddOpenApi("vN") per version instead.
+      Remove this suppression once an Asp.Versioning.OpenApi release supports Microsoft.OpenApi 3.x.
+    -->
+    <NoWarn>$(NoWarn);AV0029;AV0030</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
+    <PackageReference Include="Asp.Versioning.Mvc" Version="10.2.1" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.2.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="11.0.0" PrivateAssets="all" />
     <PackageReference Include="Scalar.AspNetCore" Version="3.2.0" />
