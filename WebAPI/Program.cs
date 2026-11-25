@@ -5,6 +5,7 @@ using Scalar.AspNetCore;
 using Serilog;
 using WebAPI.Diagnostics;
 using WebAPI.Idempotency;
+using WebAPI.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,9 +31,16 @@ builder.Services.AddApiVersioning(options =>
     });
 
 // One OpenAPI document per API version: /openapi/v1.json and /openapi/v2.json.
-// The transformer documents the Idempotency-Key header on actions marked [Idempotent].
-builder.Services.AddOpenApi("v1", options => options.AddOperationTransformer<IdempotencyKeyOperationTransformer>());
-builder.Services.AddOpenApi("v2", options => options.AddOperationTransformer<IdempotencyKeyOperationTransformer>());
+// Transformers document the Idempotency-Key header on [Idempotent] actions and the 429 response on every action.
+foreach (var version in new[] { "v1", "v2" })
+{
+    builder.Services.AddOpenApi(version, options => options
+        .AddOperationTransformer<IdempotencyKeyOperationTransformer>()
+        .AddOperationTransformer<TooManyRequestsOperationTransformer>());
+}
+
+// Rate limiting per client IP: global limit + "writes" (POST/DELETE) + "external-services" policies (see appsettings).
+builder.Services.AddApiRateLimiting(builder.Configuration);
 
 // Idempotency: [Idempotent] actions require an Idempotency-Key header; responses are stored for ExpirationHours.
 builder.Services.AddOptions<IdempotencyOptions>().BindConfiguration(IdempotencyOptions.SectionName);
@@ -56,19 +64,26 @@ app.UseExceptionHandler();
 // Empty error responses (e.g. 404 for an unknown route or an API version that does not exist for a resource)
 // get a ProblemDetails body too, through AddProblemDetails(), so every error has the same shape.
 app.UseStatusCodePages();
+
+// After the correlation id, request logging and exception handling, so rejected requests (429) are logged
+// with their correlation id; before the controllers, so a rejected request never reaches MVC.
+app.UseRateLimiter();
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();               // OpenAPI documents: /openapi/v1.json, /openapi/v2.json
-    app.MapScalarApiReference(options => options    // Interactive UI with a version dropdown: /scalar
+    // API documentation is not rate limited.
+    app.MapOpenApi().DisableRateLimiting();            // OpenAPI documents: /openapi/v1.json, /openapi/v2.json
+    app.MapScalarApiReference(options => options        // Interactive UI with a version dropdown: /scalar
         .AddDocument("v1", "v1 (Courses v1 is deprecated)")
-        .AddDocument("v2", "v2", isDefault: true));
+        .AddDocument("v2", "v2", isDefault: true))
+        .DisableRateLimiting();
 }
 
 app.UseHttpsRedirection();
 
 app.UseAuthorization();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").DisableRateLimiting();   // monitoring must always reach it
 app.MapControllers();
 
 app.Run();

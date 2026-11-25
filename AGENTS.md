@@ -147,6 +147,20 @@ Application/
 - The `Idempotency-Key` header is documented in OpenAPI/Scalar by `IdempotencyKeyOperationTransformer`, registered on every `AddOpenApi("vN")` document: a required header parameter (`format: uuid`) with an **empty** `example`, so Scalar and client generators add the header to every such request with no value and the caller only fills it in. Never put a real key as the example: every caller would send the same key and get replays or 422. Every `[Idempotent]` action also declares 409 and 422 with `[ProducesResponseType]`.
 - Every POST example in `WebAPI.http` carries its own `Idempotency-Key`. Re-running an example within the expiration window replays its first response.
 
+## Rate Limiting
+- ASP.NET Core built-in rate limiting (`Microsoft.AspNetCore.RateLimiting`, no package), configured in `WebAPI/RateLimiting/RateLimitingSetup.cs` by `AddApiRateLimiting(configuration)` and enabled with `app.UseRateLimiter()`.
+- Every limit is per client IP (`Connection.RemoteIpAddress`). Behind a reverse proxy, configure `ForwardedHeaders` first, otherwise all clients share the proxy's IP. When authentication is added, partition by user id instead.
+- Three layers; a request must pass the global limiter and its endpoint policy:
+  - **Global limiter** on every request: fixed window (`RateLimiting:Global`).
+  - **`RateLimitPolicies.Writes`** on every action that changes data (every POST and DELETE): sliding window (`RateLimiting:Writes`). Add `[EnableRateLimiting(RateLimitPolicies.Writes)]` to every new POST, PUT, PATCH or DELETE action.
+  - **`RateLimitPolicies.ExternalServices`** on every external-service controller (class-level `[EnableRateLimiting(...)]`): token bucket (`RateLimiting:ExternalServices`), so a short burst is allowed and then a steady rate protects the external API. Its POST uses this policy, not `Writes` (an endpoint has one named policy; the action-level attribute would override the class-level one).
+- All numbers live in the `RateLimiting` section of `appsettings*.json`; never hard-code limits. `QueueLimit` is 0: excess requests are rejected at once, never queued.
+- A rejected request returns 429 `ProblemDetails` with code `RateLimit.Exceeded`, `correlationId`, and a `Retry-After` header (seconds). It is logged as a Warning with the ProblemDetails JSON. It never reaches MVC: no model binding, no idempotency key is claimed, no handler runs.
+- Not rate limited (`.DisableRateLimiting()`): `/health` (monitoring must always reach it) and the Development-only `/openapi/*` and `/scalar`.
+- `UseRateLimiter()` runs after `CorrelationIdMiddleware`, request logging, `UseExceptionHandler()` and `UseStatusCodePages()`, and before the controllers.
+- The 429 response is documented on every operation by `TooManyRequestsOperationTransformer`, registered on every `AddOpenApi("vN")` document, so actions do not repeat `[ProducesResponseType(429)]`.
+- Limiters are in memory: with several instances, each instance counts separately. A shared limit across instances needs a distributed store (e.g. Redis).
+
 ## External Services
 Placeholder: `[Service]` (external API name, e.g. the provider's product name).
 - Application owns the contract: `I[Service]Client` in `Application/Common/Abstractions`, returning `Result<T>` with response records from `Application/Common/Responses`. Application never references `HttpClient`, HTTP status codes or the external JSON shapes.
@@ -220,6 +234,6 @@ Placeholder: `[Service]` (external API name, e.g. the provider's product name).
 4. Add or reuse repository methods (see Data Access). A new repository is registered automatically when it is named `[Entity]Repository` and implements `I[Entity]Repository`.
 5. Add errors to `[Module]Errors.cs` if needed.
 6. If the model changed, add a migration with the EF Core CLI (see Migrations).
-7. Add the controller action following the Controllers, API Versioning and Idempotency sections (a POST gets `[Idempotent]`), and an example request with an explicit version (and an `Idempotency-Key` for a POST) in `WebAPI.http`.
+7. Add the controller action following the Controllers, API Versioning, Idempotency and Rate Limiting sections (a POST gets `[Idempotent]`; a POST/PUT/PATCH/DELETE gets `[EnableRateLimiting(RateLimitPolicies.Writes)]`), and an example request with an explicit version (and an `Idempotency-Key` for a POST) in `WebAPI.http`.
 8. Add the endpoint to `Requirements.md`.
 9. Run `dotnet build` on the solution file at the repository root.

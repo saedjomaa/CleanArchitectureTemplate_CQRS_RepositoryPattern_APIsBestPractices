@@ -7,8 +7,10 @@ using Application.JsonPlaceholder.Commands.CreatePost;
 using Application.JsonPlaceholder.Queries.GetUser;
 using Application.JsonPlaceholder.Queries.ListUsers;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using WebAPI.Diagnostics;
 using WebAPI.Idempotency;
+using WebAPI.RateLimiting;
 
 namespace WebAPI.Controllers;
 
@@ -17,6 +19,7 @@ namespace WebAPI.Controllers;
 /// One controller per external service; the database is not used here.
 /// </summary>
 [ApiController]
+[EnableRateLimiting(RateLimitPolicies.ExternalServices)]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/jsonplaceholder")]
 public sealed class JsonPlaceholderController : ControllerBase

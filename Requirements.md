@@ -68,6 +68,13 @@ All error responses are `ProblemDetails` with `code` and `correlationId`. Every 
 - The same key while the first request is still running → 409 `Idempotency.RequestInProgress`.
 - Responses below 500 are stored, including business errors (e.g. a replayed `Enrollments.AlreadyEnrolled` stays 409). After a 5xx the key can be retried.
 - A key and its response are kept for 24 hours; after that the key can be used again.
+### Rate limits
+Limits are per client IP and protect the API from abuse and bugs in clients. When a limit is exceeded the API returns **429** with code `RateLimit.Exceeded` and a `Retry-After` header (seconds to wait). The request is not processed.
+- **All requests:** 100 per minute (fixed window).
+- **Writes (every `POST` and `DELETE` on students, courses and enrollments):** 10 per minute (sliding window), in addition to the global limit.
+- **External API (`/api/v1/jsonplaceholder/...`):** a burst of up to 10 requests, then 1 request every 6 seconds (token bucket), in addition to the global limit.
+- **Not limited:** `/health`, and the Development-only `/openapi/...` and `/scalar`.
+- A request rejected with 429 does not use its `Idempotency-Key`: retrying it later with the same key runs normally.
 ### Students
 - `POST /api/v1/students` — create a student. Body: `{ "fullName" }`. Returns 201 with the new ID.
 - `GET /api/v1/students/{id}` — get a student. Returns 200, or 404.
@@ -116,7 +123,7 @@ Applied by migrations on startup:
 
 ## Project Notes
 Technical facts specific to this project. `AGENTS.md` is generic and refers to these through placeholders.
-- Architecture: Clean Architecture + CQRS + Repository Pattern with Unit of Work, plus API best practices: API versioning (Asp.Versioning 10.2.1, URL segment) and idempotency (`Idempotency-Key` on every POST, stored in the `IdempotencyRecords` table). Rate limiting and caching are planned.
+- Architecture: Clean Architecture + CQRS + Repository Pattern with Unit of Work, plus API best practices: API versioning (Asp.Versioning 10.2.1, URL segment) idempotency (`Idempotency-Key` on every POST, stored in the `IdempotencyRecords` table) and rate limiting (built-in ASP.NET Core, per client IP). Caching is planned.
 - `[Project]` = `School`: `SchoolDbContext`, `SchoolSeed`, `SchoolUnitOfWork`.
 - Database provider: SQLite, connection string `School` = `Data Source=school.db;Foreign Keys=True` (file created next to the WebAPI project). `SchoolUnitOfWork` maps SQLite extended error codes `1555` (primary key) and `2067` (unique) to `PersistenceErrors.DuplicateKey`.
 - Solution file: `CleanArchitectureTemplate_CQRS_RepositoryPattern_APIsBestPractices.slnx`.

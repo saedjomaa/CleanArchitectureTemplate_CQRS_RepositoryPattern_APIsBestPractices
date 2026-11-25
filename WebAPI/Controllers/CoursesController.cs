@@ -7,9 +7,11 @@ using Application.Courses.Queries.GetCourse;
 using Application.Courses.Queries.ListCourses;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using WebAPI.Contracts.V2;
 using WebAPI.Diagnostics;
 using WebAPI.Idempotency;
+using WebAPI.RateLimiting;
 
 namespace WebAPI.Controllers;
 
@@ -26,6 +28,7 @@ namespace WebAPI.Controllers;
 public sealed class CoursesController : ControllerBase
 {
     [HttpPost]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
     [Idempotent]
     [EndpointSummary("Create a course")]
     [ProducesResponseType<Guid>(StatusCodes.Status201Created)]

@@ -8,8 +8,10 @@ using Application.Enrollments.Commands.EnrollStudent;
 using Application.Enrollments.Queries.GetEnrollment;
 using Application.Enrollments.Queries.ListStudentCourses;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using WebAPI.Diagnostics;
 using WebAPI.Idempotency;
+using WebAPI.RateLimiting;
 
 namespace WebAPI.Controllers;
 
@@ -21,6 +23,7 @@ public sealed class EnrollmentsController : ControllerBase
     private const string EnrollmentRoute = "enrollments/{courseId:guid}";
 
     [HttpPost("enrollments")]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
     [Idempotent]
     [EndpointSummary("Create a course enrollment for a student")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -54,6 +57,7 @@ public sealed class EnrollmentsController : ControllerBase
     }
 
     [HttpDelete(EnrollmentRoute)]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
     [EndpointSummary("Cancel a student's enrollment and release the seat")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]

@@ -7,8 +7,10 @@ using Application.Students.Commands.CreateStudent;
 using Application.Students.Queries.GetStudent;
 using Application.Students.Queries.ListStudents;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using WebAPI.Diagnostics;
 using WebAPI.Idempotency;
+using WebAPI.RateLimiting;
 
 namespace WebAPI.Controllers;
 
@@ -18,6 +20,7 @@ namespace WebAPI.Controllers;
 public sealed class StudentsController : ControllerBase
 {
     [HttpPost]
+    [EnableRateLimiting(RateLimitPolicies.Writes)]
     [Idempotent]
     [EndpointSummary("Create a student")]
     [ProducesResponseType<Guid>(StatusCodes.Status201Created)]
