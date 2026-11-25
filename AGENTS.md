@@ -98,7 +98,7 @@ Application/
 ## Errors
 - Each module has an `internal static class [Module]Errors` in `Application/Shared/Errors`, with `public static readonly Error` fields. Persistence-level errors live in `PersistenceErrors`.
 - Error codes use the form `[Module].[Reason]` with a plural module name, e.g. `[Module].NotFound`.
-- `ErrorType` maps to HTTP status in `ResultExtensions.ToProblemDetails`: `Validation` → 400, `NotFound` → 404, `Conflict` → 409, `BadGateway` → 502, `GatewayTimeout` → 504. The error code is returned in the `code` extension of the `ProblemDetails`.
+- `ErrorType` maps to HTTP status in `ResultExtensions.ToProblemDetails`: `Validation` → 400, `NotFound` → 404, `Conflict` → 409, `UnprocessableEntity` → 422, `BadGateway` → 502, `GatewayTimeout` → 504. The error code is returned in the `code` extension of the `ProblemDetails`.
 
 ## Controllers
 - No business logic. Inject handlers per action with `[FromServices]`, convert a failed `Result` with `result.ToProblemDetails(HttpContext)`.
@@ -130,6 +130,22 @@ Application/
 - OpenAPI: `AddApiExplorer` uses `GroupNameFormat = "'v'VVV"` and `SubstituteApiVersionInUrl = true`, so each version becomes a group named `v1`, `v2`, ... When adding a version, register its document with `builder.Services.AddOpenApi("vN")` and add it to Scalar with `.AddDocument("vN", ...)` (mark the newest `isDefault: true`).
 - `WebAPI.csproj` suppresses the analyzer warnings AV0029/AV0030 (they suggest `Asp.Versioning.OpenApi`, which does not yet support Microsoft.OpenApi 3.x used by .NET 11). Remove the suppression and switch to `AddApiVersioning().AddOpenApi()` + `MapOpenApi().WithDocumentPerVersion()` once a compatible release exists.
 - Keep `WebAPI.http` examples on explicit versions, with at least one example per version that differs.
+
+## Idempotency
+- Every action that creates something (every POST) is marked `[Idempotent]` (`WebAPI/Idempotency`). GET, PUT and DELETE are idempotent by HTTP semantics and are not marked.
+- A marked action **requires** the `Idempotency-Key` header: one value, 1 to 100 visible ASCII characters (clients should send a new UUID per logical operation). Missing → 400 `Idempotency.KeyMissing`; malformed → 400 `Idempotency.KeyInvalid`.
+- `IdempotencyFilter` is a resource filter, so it runs before model binding, validation and the handler:
+  - it hashes the request (SHA-256 of method, path with version, query and the raw body) and claims the key through `IIdempotencyStore`;
+  - same key + same request, already finished → the stored response is replayed byte for byte (status, `Location`, body) with header `Idempotency-Replayed: true`; the handler does not run;
+  - same key + different request (other path, version or body, even different whitespace) → 422 `Idempotency.KeyReused`;
+  - same key while the first request is still running → 409 `Idempotency.RequestInProgress`;
+  - new key → the action runs, and its response is stored.
+- Stored: every response below 500, including 4xx business errors (a replayed `Enrollments.AlreadyEnrolled` stays 409). Not stored: 5xx responses and exceptions; the claim is released so the client can retry with the same key.
+- `IIdempotencyStore` (Application/Common/Abstractions) is implemented by `IdempotencyStore` in `Infrastructure/Persistence/Idempotency` over the `IdempotencyRecords` table. The table's primary key on `Key` makes the claim atomic, so concurrent requests with one key run the action at most once, even across several instances. The claim is saved and detached immediately, and the result is written with `ExecuteUpdate`, so it never mixes with the handler's Unit of Work.
+- Keys expire after `Idempotency:ExpirationHours` (appsettings, default 24). An expired key is removed when it is used again; there is no background cleanup yet.
+- Handlers know nothing about idempotency; never pass the key into a command.
+- The `Idempotency-Key` header is documented in OpenAPI/Scalar by `IdempotencyKeyOperationTransformer`, registered on every `AddOpenApi("vN")` document: a required header parameter (`format: uuid`) with an **empty** `example`, so Scalar and client generators add the header to every such request with no value and the caller only fills it in. Never put a real key as the example: every caller would send the same key and get replays or 422. Every `[Idempotent]` action also declares 409 and 422 with `[ProducesResponseType]`.
+- Every POST example in `WebAPI.http` carries its own `Idempotency-Key`. Re-running an example within the expiration window replays its first response.
 
 ## External Services
 Placeholder: `[Service]` (external API name, e.g. the provider's product name).
@@ -204,6 +220,6 @@ Placeholder: `[Service]` (external API name, e.g. the provider's product name).
 4. Add or reuse repository methods (see Data Access). A new repository is registered automatically when it is named `[Entity]Repository` and implements `I[Entity]Repository`.
 5. Add errors to `[Module]Errors.cs` if needed.
 6. If the model changed, add a migration with the EF Core CLI (see Migrations).
-7. Add the controller action following the Controllers and API Versioning sections, and an example request with an explicit version in `WebAPI.http`.
+7. Add the controller action following the Controllers, API Versioning and Idempotency sections (a POST gets `[Idempotent]`), and an example request with an explicit version (and an `Idempotency-Key` for a POST) in `WebAPI.http`.
 8. Add the endpoint to `Requirements.md`.
 9. Run `dotnet build` on the solution file at the repository root.

@@ -60,6 +60,14 @@ All error responses are `ProblemDetails` with `code` and `correlationId`. Every 
 - A version that does not exist for a resource (e.g. `/api/v3/courses`, `/api/v2/students`), or a URL without a version (`/api/courses`), returns **404** with a `ProblemDetails` body (no route exists for it), and the request does not reach any handler.
 - The v2 course response is a demonstration of versioning. In practice an additive change like a new field does not require a new version; a new version is for breaking changes (removed or renamed fields, changed types or meaning).
 
+### Idempotency
+- Every `POST` endpoint requires an `Idempotency-Key` header (a unique value per operation, e.g. a UUID; max 100 visible ASCII characters).
+  - Missing → 400 `Idempotency.KeyMissing`; malformed → 400 `Idempotency.KeyInvalid`.
+- Sending the same request again with the same key does **not** run it again: the first response is returned (same status, body and `Location`) with the header `Idempotency-Replayed: true`. This makes retries after a timeout or a lost connection safe (no duplicate student, course, enrollment or post).
+- The same key with a different request (another endpoint, version or body) → 422 `Idempotency.KeyReused`.
+- The same key while the first request is still running → 409 `Idempotency.RequestInProgress`.
+- Responses below 500 are stored, including business errors (e.g. a replayed `Enrollments.AlreadyEnrolled` stays 409). After a 5xx the key can be retried.
+- A key and its response are kept for 24 hours; after that the key can be used again.
 ### Students
 - `POST /api/v1/students` — create a student. Body: `{ "fullName" }`. Returns 201 with the new ID.
 - `GET /api/v1/students/{id}` — get a student. Returns 200, or 404.
@@ -108,10 +116,11 @@ Applied by migrations on startup:
 
 ## Project Notes
 Technical facts specific to this project. `AGENTS.md` is generic and refers to these through placeholders.
-- Architecture: Clean Architecture + CQRS + Repository Pattern with Unit of Work, plus API best practices: API versioning (Asp.Versioning 10.2.1, URL segment). Idempotency, rate limiting and caching are planned.
+- Architecture: Clean Architecture + CQRS + Repository Pattern with Unit of Work, plus API best practices: API versioning (Asp.Versioning 10.2.1, URL segment) and idempotency (`Idempotency-Key` on every POST, stored in the `IdempotencyRecords` table). Rate limiting and caching are planned.
 - `[Project]` = `School`: `SchoolDbContext`, `SchoolSeed`, `SchoolUnitOfWork`.
 - Database provider: SQLite, connection string `School` = `Data Source=school.db;Foreign Keys=True` (file created next to the WebAPI project). `SchoolUnitOfWork` maps SQLite extended error codes `1555` (primary key) and `2067` (unique) to `PersistenceErrors.DuplicateKey`.
-- Solution file: `CleanArchitectureTemplate_CQRS_RepositoryPattern.slnx`.
+- Solution file: `CleanArchitectureTemplate_CQRS_RepositoryPattern_APIsBestPractices.slnx`.
+- EF Core CLI: local tool in `dotnet-tools.json` (dotnet-ef 11.0.0). Run `dotnet tool restore` once after cloning.
 - External service `[Service]` = `JsonPlaceholder`: `IJsonPlaceholderClient`, `JsonPlaceholderClient`, settings `ExternalServices:JsonPlaceholder:BaseUrl` = `https://jsonplaceholder.typicode.com/`. Shared timeout for all external services: `ExternalServices:TimeoutSeconds` = 10.
 - Known exception: migration `20261120061000_InitialSchool` was written by hand and has no `.Designer.cs` file. Do not copy that style; create new migrations with the EF Core CLI.
 - EF Core sensitive data logging is **enabled in all environments** (`Database:EnableSensitiveDataLogging = true` in `appsettings.json`), by the project owner's decision. Log files therefore contain SQL parameter values such as student names. To disable it in one environment, set it to `false` in `appsettings.{Environment}.json`.

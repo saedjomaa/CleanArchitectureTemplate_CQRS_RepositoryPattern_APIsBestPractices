@@ -8,6 +8,7 @@ using Application.JsonPlaceholder.Queries.GetUser;
 using Application.JsonPlaceholder.Queries.ListUsers;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Diagnostics;
+using WebAPI.Idempotency;
 
 namespace WebAPI.Controllers;
 
@@ -53,11 +54,14 @@ public sealed class JsonPlaceholderController : ControllerBase
     }
 
     [HttpPost("posts")]
+    [Idempotent]
     [EndpointSummary("Create a post in JSONPlaceholder (fake: JSONPlaceholder does not persist it)")]
     [ProducesResponseType<JsonPlaceholderPostResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status502BadGateway)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status504GatewayTimeout)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<JsonPlaceholderPostResponse>> CreatePost(
         CreatePostCommand command,
         [FromServices] ICommandHandler<CreatePostCommand, Result<JsonPlaceholderPostResponse>> handler,

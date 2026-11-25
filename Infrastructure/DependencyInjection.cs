@@ -3,6 +3,7 @@ using Domain.Entities;
 using Infrastructure.ExternalServices;
 using Infrastructure.ExternalServices.JsonPlaceholder;
 using Infrastructure.Persistence;
+using Infrastructure.Persistence.Idempotency;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -23,6 +24,7 @@ public static class DependencyInjection
             .AsMatchingInterface()
             .WithScopedLifetime());
         services.AddScoped<IUnitOfWork, SchoolUnitOfWork>();
+        services.AddScoped<IIdempotencyStore, IdempotencyStore>();
         services.AddHealthChecks().AddDbContextCheck<SchoolDbContext>("database",
             customTestQuery: async (db, cancellationToken) =>
             {

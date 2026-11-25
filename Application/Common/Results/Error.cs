@@ -5,6 +5,7 @@ public enum ErrorType
     Validation,
     NotFound,
     Conflict,
+    UnprocessableEntity,
     BadGateway,
     GatewayTimeout
 }

@@ -8,6 +8,7 @@ using Application.Students.Queries.GetStudent;
 using Application.Students.Queries.ListStudents;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Diagnostics;
+using WebAPI.Idempotency;
 
 namespace WebAPI.Controllers;
 
@@ -17,9 +18,12 @@ namespace WebAPI.Controllers;
 public sealed class StudentsController : ControllerBase
 {
     [HttpPost]
+    [Idempotent]
     [EndpointSummary("Create a student")]
     [ProducesResponseType<Guid>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<Guid>> Create(
         CreateStudentCommand command,
         [FromServices] ICommandHandler<CreateStudentCommand, Result<Guid>> handler,

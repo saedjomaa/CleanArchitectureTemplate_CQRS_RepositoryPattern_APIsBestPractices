@@ -4,6 +4,7 @@ using Infrastructure;
 using Scalar.AspNetCore;
 using Serilog;
 using WebAPI.Diagnostics;
+using WebAPI.Idempotency;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,9 +29,13 @@ builder.Services.AddApiVersioning(options =>
         options.SubstituteApiVersionInUrl = true;   // OpenAPI shows /api/v1/... instead of /api/v{version}/...
     });
 
-// One OpenAPI document per API version: /openapi/v1.json and /openapi/v2.json
-builder.Services.AddOpenApi("v1");
-builder.Services.AddOpenApi("v2");
+// One OpenAPI document per API version: /openapi/v1.json and /openapi/v2.json.
+// The transformer documents the Idempotency-Key header on actions marked [Idempotent].
+builder.Services.AddOpenApi("v1", options => options.AddOperationTransformer<IdempotencyKeyOperationTransformer>());
+builder.Services.AddOpenApi("v2", options => options.AddOperationTransformer<IdempotencyKeyOperationTransformer>());
+
+// Idempotency: [Idempotent] actions require an Idempotency-Key header; responses are stored for ExpirationHours.
+builder.Services.AddOptions<IdempotencyOptions>().BindConfiguration(IdempotencyOptions.SectionName);
 builder.Services.AddProblemDetails(options =>
     options.CustomizeProblemDetails = context =>
         context.ProblemDetails.Extensions["correlationId"] = context.HttpContext.TraceIdentifier);

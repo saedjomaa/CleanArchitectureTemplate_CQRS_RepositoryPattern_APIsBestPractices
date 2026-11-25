@@ -15,7 +15,7 @@ partial class SchoolDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261122012741_AddCourseCapacity";
+    public override string LastMigrationId => "20261125020359_AddIdempotencyRecords";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -126,6 +126,44 @@ partial class SchoolDbContextModelSnapshot : ModelSnapshot
                         Id = new Guid("22222222-2222-4222-8222-222222222222"),
                         FullName = "Omar Ali"
                     });
+            });
+
+        modelBuilder.Entity("Infrastructure.Persistence.Idempotency.IdempotencyRecord", b =>
+            {
+                b.Property<string>("Key")
+                    .HasMaxLength(100)
+                    .HasColumnType("TEXT");
+
+                b.Property<byte[]>("Body")
+                    .HasColumnType("BLOB");
+
+                b.Property<string>("ContentType")
+                    .HasMaxLength(200)
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("CreatedAtUtc")
+                    .HasColumnType("TEXT");
+
+                b.Property<DateTime>("ExpiresAtUtc")
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("Location")
+                    .HasMaxLength(2048)
+                    .HasColumnType("TEXT");
+
+                b.Property<string>("RequestHash")
+                    .IsRequired()
+                    .HasMaxLength(64)
+                    .HasColumnType("TEXT");
+
+                b.Property<int?>("StatusCode")
+                    .HasColumnType("INTEGER");
+
+                b.HasKey("Key");
+
+                b.HasIndex("ExpiresAtUtc");
+
+                b.ToTable("IdempotencyRecords");
             });
 
         modelBuilder.Entity("Domain.Entities.Enrollment", b =>

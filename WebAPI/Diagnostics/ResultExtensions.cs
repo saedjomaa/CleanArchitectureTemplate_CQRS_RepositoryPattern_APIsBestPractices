@@ -16,6 +16,7 @@ internal static class ResultExtensions
             ErrorType.Validation => StatusCodes.Status400BadRequest,
             ErrorType.NotFound => StatusCodes.Status404NotFound,
             ErrorType.Conflict => StatusCodes.Status409Conflict,
+            ErrorType.UnprocessableEntity => StatusCodes.Status422UnprocessableEntity,
             ErrorType.BadGateway => StatusCodes.Status502BadGateway,
             ErrorType.GatewayTimeout => StatusCodes.Status504GatewayTimeout,
             _ => throw new ArgumentOutOfRangeException(nameof(result), error.Type, "Unknown error type.")

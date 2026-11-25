@@ -9,6 +9,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Contracts.V2;
 using WebAPI.Diagnostics;
+using WebAPI.Idempotency;
 
 namespace WebAPI.Controllers;
 
@@ -25,9 +26,12 @@ namespace WebAPI.Controllers;
 public sealed class CoursesController : ControllerBase
 {
     [HttpPost]
+    [Idempotent]
     [EndpointSummary("Create a course")]
     [ProducesResponseType<Guid>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<Guid>> Create(
         CreateCourseCommand command,
         [FromServices] ICommandHandler<CreateCourseCommand, Result<Guid>> handler,

@@ -9,6 +9,7 @@ using Application.Enrollments.Queries.GetEnrollment;
 using Application.Enrollments.Queries.ListStudentCourses;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Diagnostics;
+using WebAPI.Idempotency;
 
 namespace WebAPI.Controllers;
 
@@ -20,11 +21,13 @@ public sealed class EnrollmentsController : ControllerBase
     private const string EnrollmentRoute = "enrollments/{courseId:guid}";
 
     [HttpPost("enrollments")]
+    [Idempotent]
     [EndpointSummary("Create a course enrollment for a student")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Create(
         Guid studentId,
         EnrollStudentRequest request,

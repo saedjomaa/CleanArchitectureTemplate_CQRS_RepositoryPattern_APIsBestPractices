@@ -41,6 +41,7 @@ Accept: application/json
 
 # Create a student
 POST {{WebAPI_HostAddress}}/api/v1/students
+Idempotency-Key: 7fba074d-760a-42db-a208-ccff8d703ac3
 Content-Type: application/json
 
 {
@@ -51,6 +52,7 @@ Content-Type: application/json
 
 # Create a course with twelve seats
 POST {{WebAPI_HostAddress}}/api/v1/courses
+Idempotency-Key: 4afb4ad7-08c8-48ed-90cc-6a44fbdbeafb
 Content-Type: application/json
 
 {
@@ -62,6 +64,7 @@ Content-Type: application/json
 
 # Enroll in Database Fundamentals (expected HTTP 204)
 POST {{WebAPI_HostAddress}}/api/v1/students/{{studentId}}/enrollments
+Idempotency-Key: 9b05581e-af9e-45a4-a15f-8b3fd93f5519
 Content-Type: application/json
 
 {
@@ -72,6 +75,7 @@ Content-Type: application/json
 
 # Enroll in ASP.NET Core Web API (expected HTTP 204)
 POST {{WebAPI_HostAddress}}/api/v1/students/{{studentId}}/enrollments
+Idempotency-Key: a11ed8f3-c22b-40b5-ad8b-826f242b3553
 Content-Type: application/json
 
 {
@@ -88,6 +92,7 @@ Accept: application/json
 
 # Repeat enrollment in Database Fundamentals (expected HTTP 409)
 POST {{WebAPI_HostAddress}}/api/v1/students/{{studentId}}/enrollments
+Idempotency-Key: 64d91545-93e8-4e58-8227-bfb66fa30eb0
 Content-Type: application/json
 
 {
@@ -146,6 +151,7 @@ Accept: application/json
 
 # Create an external post (expected HTTP 201, id 101; JSONPlaceholder does not persist it)
 POST {{WebAPI_HostAddress}}/api/v1/jsonplaceholder/posts
+Idempotency-Key: fae030b6-5584-4769-aa08-80f1b6db412f
 Content-Type: application/json
 
 {
@@ -158,6 +164,7 @@ Content-Type: application/json
 
 # Create an external post with an empty title (expected HTTP 400)
 POST {{WebAPI_HostAddress}}/api/v1/jsonplaceholder/posts
+Idempotency-Key: d08bcb7b-15fa-46f3-91ee-04f0ec801c13
 Content-Type: application/json
 
 {
@@ -183,6 +190,7 @@ Accept: application/json
 
 # Create a course through v2 (expected HTTP 201, Location points to /api/v2/courses/{id})
 POST {{WebAPI_HostAddress}}/api/v2/courses
+Idempotency-Key: 2ce93c26-2503-48ef-98cb-5e6c486d929e
 Content-Type: application/json
 
 {
@@ -195,3 +203,50 @@ Content-Type: application/json
 # Unsupported version: students have no v2 (expected HTTP 404 with a ProblemDetails body)
 GET {{WebAPI_HostAddress}}/api/v2/students
 Accept: application/json
+###
+
+# ---------- Idempotency ----------
+# Every POST requires an Idempotency-Key header. Send the same request again with the same key:
+# the first response is returned again (header Idempotency-Replayed: true) and nothing is created twice.
+# Keys are kept for 24 hours (Idempotency:ExpirationHours).
+
+# 1. Create a student with a fixed key (expected HTTP 201)
+POST {{WebAPI_HostAddress}}/api/v1/students
+Content-Type: application/json
+Idempotency-Key: 3f2a9c1e-7b4d-4e8a-9c2f-1a5b6d7e8f90
+
+{
+  "fullName": "Idempotent Student"
+}
+
+###
+
+# 2. Same key, same body: replayed (expected the same HTTP 201 and the same ID, Idempotency-Replayed: true)
+POST {{WebAPI_HostAddress}}/api/v1/students
+Content-Type: application/json
+Idempotency-Key: 3f2a9c1e-7b4d-4e8a-9c2f-1a5b6d7e8f90
+
+{
+  "fullName": "Idempotent Student"
+}
+
+###
+
+# 3. Same key, different body (expected HTTP 422, Idempotency.KeyReused)
+POST {{WebAPI_HostAddress}}/api/v1/students
+Content-Type: application/json
+Idempotency-Key: 3f2a9c1e-7b4d-4e8a-9c2f-1a5b6d7e8f90
+
+{
+  "fullName": "Someone Else"
+}
+
+###
+
+# 4. No key (expected HTTP 400, Idempotency.KeyMissing)
+POST {{WebAPI_HostAddress}}/api/v1/students
+Content-Type: application/json
+
+{
+  "fullName": "No Key"
+}
