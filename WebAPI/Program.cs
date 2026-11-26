@@ -3,6 +3,7 @@ using Asp.Versioning;
 using Infrastructure;
 using Scalar.AspNetCore;
 using Serilog;
+using WebAPI.Caching;
 using WebAPI.Diagnostics;
 using WebAPI.Idempotency;
 using WebAPI.RateLimiting;
@@ -42,6 +43,9 @@ foreach (var version in new[] { "v1", "v2" })
 // Rate limiting per client IP: global limit + "writes" (POST/DELETE) + "external-services" policies (see appsettings).
 builder.Services.AddApiRateLimiting(builder.Configuration);
 
+// Output caching of GET responses: "local-data" (expires + evicted by writes through tags) and "external-services".
+builder.Services.AddApiCaching(builder.Configuration);
+
 // Idempotency: [Idempotent] actions require an Idempotency-Key header; responses are stored for ExpirationHours.
 builder.Services.AddOptions<IdempotencyOptions>().BindConfiguration(IdempotencyOptions.SectionName);
 builder.Services.AddProblemDetails(options =>
@@ -68,6 +72,10 @@ app.UseStatusCodePages();
 // After the correlation id, request logging and exception handling, so rejected requests (429) are logged
 // with their correlation id; before the controllers, so a rejected request never reaches MVC.
 app.UseRateLimiter();
+
+// After the rate limiter, so a response served from the cache still counts toward the client's limit.
+// A cache hit is returned here and never reaches MVC (no handler, no database).
+app.UseOutputCache();
 
 if (app.Environment.IsDevelopment())
 {

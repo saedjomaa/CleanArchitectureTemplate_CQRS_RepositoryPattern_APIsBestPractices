@@ -7,7 +7,9 @@ using Application.Students.Commands.CreateStudent;
 using Application.Students.Queries.GetStudent;
 using Application.Students.Queries.ListStudents;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
+using WebAPI.Caching;
 using WebAPI.Diagnostics;
 using WebAPI.Idempotency;
 using WebAPI.RateLimiting;
@@ -22,6 +24,7 @@ public sealed class StudentsController : ControllerBase
     [HttpPost]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
     [Idempotent]
+    [InvalidatesCache(CacheTags.Students)]
     [EndpointSummary("Create a student")]
     [ProducesResponseType<Guid>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -39,6 +42,7 @@ public sealed class StudentsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [OutputCache(PolicyName = CachePolicies.LocalData, Tags = [CacheTags.Students])]
     [EndpointSummary("Get a student by ID")]
     [ProducesResponseType<StudentResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -53,6 +57,7 @@ public sealed class StudentsController : ControllerBase
     }
 
     [HttpGet]
+    [OutputCache(PolicyName = CachePolicies.LocalData, Tags = [CacheTags.Students])]
     [EndpointSummary("List students")]
     [ProducesResponseType<PagedResult<StudentResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]

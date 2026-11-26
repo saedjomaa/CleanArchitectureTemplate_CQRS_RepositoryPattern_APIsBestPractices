@@ -161,6 +161,19 @@ Application/
 - The 429 response is documented on every operation by `TooManyRequestsOperationTransformer`, registered on every `AddOpenApi("vN")` document, so actions do not repeat `[ProducesResponseType(429)]`.
 - Limiters are in memory: with several instances, each instance counts separately. A shared limit across instances needs a distributed store (e.g. Redis).
 
+## Caching
+- ASP.NET Core built-in Output Caching (`Microsoft.AspNetCore.OutputCaching`, no package), configured in `WebAPI/Caching/CachingSetup.cs` by `AddApiCaching(configuration)` and enabled with `app.UseOutputCache()` right after `app.UseRateLimiter()` (a cache hit still counts toward the rate limits). A hit is served before MVC: no handler, no database, no external call.
+- Caching is a WebAPI concern. Application knows nothing about it: no cache calls in handlers, no caching decorator, no marker interfaces on queries.
+- Every GET action is marked with `[OutputCache(PolicyName = CachePolicies.X, Tags = [CacheTags.Y])]`:
+  - `CachePolicies.LocalData`: the application's own data; expires after `Caching:LocalDataSeconds` and is evicted earlier by writes.
+  - `CachePolicies.ExternalServices`: GETs of external-service controllers; expires after `Caching:ExternalServicesSeconds`, never evicted by our writes (we do not own the data).
+  - Tags (`CacheTags`) name the data a response shows, one per module (`[module]`), and one per external service.
+- Every write action (POST/PUT/PATCH/DELETE) that changes local data is marked `[InvalidatesCache(CacheTags.X, ...)]` with the tag of **every** module whose cached responses it changes, including side effects (e.g. a write that changes a counter shown by another module evicts that module's tag too). The filter evicts the tags only when the action returns 2xx, before the response is written. An idempotent replay does not run the action and evicts nothing (nothing changed).
+- The cache key is the full URL (version, path, query string), so `?page=2` and `/api/v2/...` are cached separately. Only 200 responses of GET/HEAD are stored; errors, writes and requests with `Authorization` or cookies are not. `/health` is never cached.
+- When authentication is added, a response that depends on the user must vary by user (or not be cached); the default policy skips authenticated requests.
+- All durations live in the `Caching` section of `appsettings*.json`; never hard-code them.
+- The store is in memory, per instance: with several instances, an eviction on one does not reach the others. A shared cache needs a distributed store (e.g. `Microsoft.AspNetCore.OutputCaching.StackExchangeRedis`); endpoints do not change.
+
 ## External Services
 Placeholder: `[Service]` (external API name, e.g. the provider's product name).
 - Application owns the contract: `I[Service]Client` in `Application/Common/Abstractions`, returning `Result<T>` with response records from `Application/Common/Responses`. Application never references `HttpClient`, HTTP status codes or the external JSON shapes.
@@ -234,6 +247,6 @@ Placeholder: `[Service]` (external API name, e.g. the provider's product name).
 4. Add or reuse repository methods (see Data Access). A new repository is registered automatically when it is named `[Entity]Repository` and implements `I[Entity]Repository`.
 5. Add errors to `[Module]Errors.cs` if needed.
 6. If the model changed, add a migration with the EF Core CLI (see Migrations).
-7. Add the controller action following the Controllers, API Versioning, Idempotency and Rate Limiting sections (a POST gets `[Idempotent]`; a POST/PUT/PATCH/DELETE gets `[EnableRateLimiting(RateLimitPolicies.Writes)]`), and an example request with an explicit version (and an `Idempotency-Key` for a POST) in `WebAPI.http`.
+7. Add the controller action following the Controllers, API Versioning, Idempotency, Rate Limiting and Caching sections (a POST gets `[Idempotent]`; a POST/PUT/PATCH/DELETE gets `[EnableRateLimiting(RateLimitPolicies.Writes)]` and `[InvalidatesCache(...)]` with every affected tag; a GET gets `[OutputCache(...)]` with its module's tag), and an example request with an explicit version (and an `Idempotency-Key` for a POST) in `WebAPI.http`.
 8. Add the endpoint to `Requirements.md`.
 9. Run `dotnet build` on the solution file at the repository root.

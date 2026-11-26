@@ -75,6 +75,18 @@ Limits are per client IP and protect the API from abuse and bugs in clients. Whe
 - **External API (`/api/v1/jsonplaceholder/...`):** a burst of up to 10 requests, then 1 request every 6 seconds (token bucket), in addition to the global limit.
 - **Not limited:** `/health`, and the Development-only `/openapi/...` and `/scalar`.
 - A request rejected with 429 does not use its `Idempotency-Key`: retrying it later with the same key runs normally.
+
+### Caching
+Successful `GET` responses (200) are cached on the server, so repeated reads do not hit the database or the external API. Each URL (version, path and query string, e.g. `?page=2`) is cached separately.
+- **Students, courses, enrollments:** cached for up to 60 seconds. A successful write clears the affected data immediately, so a client never reads stale data after its own write:
+  - creating a student clears cached students;
+  - creating a course clears cached courses;
+  - enrolling or canceling clears cached enrollments **and** courses (the course's `enrolledCount` / `availableSeats` change).
+- **External API (`GET /api/v1/jsonplaceholder/users...`):** cached for 5 minutes. We do not own this data, so it is never cleared early (the fake `POST /posts` changes nothing there).
+- Never cached: errors (400, 404, 5xx), `POST` / `DELETE`, `/health`.
+- A response served from the cache still counts toward the rate limits.
+- The cache is in the server's memory: it is empty after a restart, and with several server instances each one has its own cache.
+
 ### Students
 - `POST /api/v1/students` — create a student. Body: `{ "fullName" }`. Returns 201 with the new ID.
 - `GET /api/v1/students/{id}` — get a student. Returns 200, or 404.
@@ -123,7 +135,7 @@ Applied by migrations on startup:
 
 ## Project Notes
 Technical facts specific to this project. `AGENTS.md` is generic and refers to these through placeholders.
-- Architecture: Clean Architecture + CQRS + Repository Pattern with Unit of Work, plus API best practices: API versioning (Asp.Versioning 10.2.1, URL segment) idempotency (`Idempotency-Key` on every POST, stored in the `IdempotencyRecords` table) and rate limiting (built-in ASP.NET Core, per client IP). Caching is planned.
+- Architecture: Clean Architecture + CQRS + Repository Pattern with Unit of Work, plus API best practices: API versioning (Asp.Versioning 10.2.1, URL segment), idempotency (`Idempotency-Key` on every POST, stored in the `IdempotencyRecords` table), rate limiting (built-in ASP.NET Core, per client IP) and output caching (built-in ASP.NET Core, in memory, invalidated by tags).
 - `[Project]` = `School`: `SchoolDbContext`, `SchoolSeed`, `SchoolUnitOfWork`.
 - Database provider: SQLite, connection string `School` = `Data Source=school.db;Foreign Keys=True` (file created next to the WebAPI project). `SchoolUnitOfWork` maps SQLite extended error codes `1555` (primary key) and `2067` (unique) to `PersistenceErrors.DuplicateKey`.
 - Solution file: `CleanArchitectureTemplate_CQRS_RepositoryPattern_APIsBestPractices.slnx`.

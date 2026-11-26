@@ -7,7 +7,9 @@ using Application.JsonPlaceholder.Commands.CreatePost;
 using Application.JsonPlaceholder.Queries.GetUser;
 using Application.JsonPlaceholder.Queries.ListUsers;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
+using WebAPI.Caching;
 using WebAPI.Diagnostics;
 using WebAPI.Idempotency;
 using WebAPI.RateLimiting;
@@ -25,6 +27,7 @@ namespace WebAPI.Controllers;
 public sealed class JsonPlaceholderController : ControllerBase
 {
     [HttpGet("users")]
+    [OutputCache(PolicyName = CachePolicies.ExternalServices, Tags = [CacheTags.JsonPlaceholder])]
     [EndpointSummary("List users from JSONPlaceholder")]
     [ProducesResponseType<PagedResult<JsonPlaceholderUserResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -41,6 +44,7 @@ public sealed class JsonPlaceholderController : ControllerBase
     }
 
     [HttpGet("users/{id:int}")]
+    [OutputCache(PolicyName = CachePolicies.ExternalServices, Tags = [CacheTags.JsonPlaceholder])]
     [EndpointSummary("Get a user from JSONPlaceholder")]
     [ProducesResponseType<JsonPlaceholderUserResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]

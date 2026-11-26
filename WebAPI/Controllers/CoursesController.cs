@@ -7,7 +7,9 @@ using Application.Courses.Queries.GetCourse;
 using Application.Courses.Queries.ListCourses;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
+using WebAPI.Caching;
 using WebAPI.Contracts.V2;
 using WebAPI.Diagnostics;
 using WebAPI.Idempotency;
@@ -30,6 +32,7 @@ public sealed class CoursesController : ControllerBase
     [HttpPost]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
     [Idempotent]
+    [InvalidatesCache(CacheTags.Courses)]
     [EndpointSummary("Create a course")]
     [ProducesResponseType<Guid>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -51,6 +54,7 @@ public sealed class CoursesController : ControllerBase
 
     [HttpGet("{id:guid}")]
     [MapToApiVersion("1.0")]
+    [OutputCache(PolicyName = CachePolicies.LocalData, Tags = [CacheTags.Courses])]
     [EndpointSummary("Get a course by ID (v1, deprecated: use v2)")]
     [ProducesResponseType<CourseResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -66,6 +70,7 @@ public sealed class CoursesController : ControllerBase
 
     [HttpGet("{id:guid}")]
     [MapToApiVersion("2.0")]
+    [OutputCache(PolicyName = CachePolicies.LocalData, Tags = [CacheTags.Courses])]
     [EndpointSummary("Get a course by ID, including available seats")]
     [ProducesResponseType<CourseV2Response>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -81,6 +86,7 @@ public sealed class CoursesController : ControllerBase
     }
 
     [HttpGet]
+    [OutputCache(PolicyName = CachePolicies.LocalData, Tags = [CacheTags.Courses])]
     [EndpointSummary("List courses")]
     [ProducesResponseType<PagedResult<CourseResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]

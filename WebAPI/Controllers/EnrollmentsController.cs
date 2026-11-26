@@ -8,7 +8,9 @@ using Application.Enrollments.Commands.EnrollStudent;
 using Application.Enrollments.Queries.GetEnrollment;
 using Application.Enrollments.Queries.ListStudentCourses;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.RateLimiting;
+using WebAPI.Caching;
 using WebAPI.Diagnostics;
 using WebAPI.Idempotency;
 using WebAPI.RateLimiting;
@@ -25,6 +27,7 @@ public sealed class EnrollmentsController : ControllerBase
     [HttpPost("enrollments")]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
     [Idempotent]
+    [InvalidatesCache(CacheTags.Enrollments, CacheTags.Courses)] // a course's available seats change too
     [EndpointSummary("Create a course enrollment for a student")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -42,6 +45,7 @@ public sealed class EnrollmentsController : ControllerBase
     }
 
     [HttpGet(EnrollmentRoute)]
+    [OutputCache(PolicyName = CachePolicies.LocalData, Tags = [CacheTags.Enrollments])]
     [EndpointSummary("Get a student's enrollment in a course")]
     [ProducesResponseType<EnrollmentResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -58,6 +62,7 @@ public sealed class EnrollmentsController : ControllerBase
 
     [HttpDelete(EnrollmentRoute)]
     [EnableRateLimiting(RateLimitPolicies.Writes)]
+    [InvalidatesCache(CacheTags.Enrollments, CacheTags.Courses)] // the seat goes back to the course
     [EndpointSummary("Cancel a student's enrollment and release the seat")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -74,6 +79,7 @@ public sealed class EnrollmentsController : ControllerBase
     }
 
     [HttpGet("courses")]
+    [OutputCache(PolicyName = CachePolicies.LocalData, Tags = [CacheTags.Enrollments])]
     [EndpointSummary("List courses a student is enrolled in")]
     [ProducesResponseType<PagedResult<StudentCourseResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
